@@ -1,0 +1,196 @@
+<?xml version="1.0"?>
+
+<robot name="simple_robot">
+
+    <!-- ================= BASE ================= -->
+
+    <link name="base_link">
+        <visual>
+            <geometry>
+                <box size="0.3 0.3 0.3"/>
+            </geometry>
+        </visual>
+    </link>
+
+
+    <!-- ============== JOINT 1: Z ============== -->
+
+    <joint name="joint1" type="revolute">
+        <parent link="base_link"/>
+        <child link="cylinder1"/>
+
+        <!-- top of the cube -->
+        <origin xyz="0 0 0.15" rpy="0 0 0"/>
+
+        <axis xyz="0 0 1"/>
+
+        <limit
+            lower="-1.5708"
+            upper="1.5708"
+            effort="10"
+            velocity="1"
+        />
+    </joint>
+
+
+    <!-- ============== CYLINDER 1 ============== -->
+
+    <link name="cylinder1">
+        <visual>
+            <!-- frame is at bottom of cylinder -->
+            <origin xyz="0 0 0.25" rpy="0 0 0"/>
+
+            <geometry>
+                <cylinder radius="0.05" length="0.5"/>
+            </geometry>
+        </visual>
+    </link>
+
+
+    <!-- ============== SPHERE 1 ============== -->
+
+    <joint name="sphere1_joint" type="fixed">
+        <parent link="cylinder1"/>
+        <child link="sphere1"/>
+
+        <!-- end of cylinder1 -->
+        <origin xyz="0 0 0.5" rpy="0 0 0"/>
+    </joint>
+
+    <link name="sphere1">
+        <visual>
+            <geometry>
+                <sphere radius="0.06"/>
+            </geometry>
+        </visual>
+    </link>
+
+
+    <!-- ============== JOINT 2: X ============== -->
+
+    <joint name="joint2" type="revolute">
+        <parent link="sphere1"/>
+        <child link="cylinder2"/>
+
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+
+        <axis xyz="1 0 0"/>
+
+        <limit
+            lower="-1.5708"
+            upper="1.5708"
+            effort="10"
+            velocity="1"
+        />
+    </joint>
+
+
+    <!-- ============== CYLINDER 2 ============== -->
+
+    <link name="cylinder2">
+        <visual>
+            <origin xyz="0 0 0.125" rpy="0 0 0"/>
+
+            <geometry>
+                <cylinder radius="0.05" length="0.25"/>
+            </geometry>
+        </visual>
+    </link>
+
+
+    <!-- ============== JOINT 3: Z ============== -->
+
+    <joint name="joint3" type="revolute">
+        <parent link="cylinder2"/>
+        <child link="cylinder3"/>
+
+        <!-- end of cylinder2 -->
+        <origin xyz="0 0 0.25" rpy="0 0 0"/>
+
+        <axis xyz="0 0 1"/>
+
+        <limit
+            lower="-1.5708"
+            upper="1.5708"
+            effort="10"
+            velocity="1"
+        />
+    </joint>
+
+
+    <!-- ============== CYLINDER 3 ============== -->
+
+    <link name="cylinder3">
+        <visual>
+            <origin xyz="0 0 0.125" rpy="0 0 0"/>
+
+            <geometry>
+                <cylinder radius="0.05" length="0.25"/>
+            </geometry>
+        </visual>
+    </link>
+
+
+    <!-- ============== SPHERE 2 ============== -->
+
+    <joint name="sphere2_joint" type="fixed">
+        <parent link="cylinder3"/>
+        <child link="sphere2"/>
+
+        <!-- end of cylinder3 -->
+        <origin xyz="0 0 0.25" rpy="0 0 0"/>
+    </joint>
+
+    <link name="sphere2">
+        <visual>
+            <geometry>
+                <sphere radius="0.06"/>
+            </geometry>
+        </visual>
+    </link>
+
+
+    <!-- ============== JOINT 4: X ============== -->
+
+    <joint name="joint4" type="revolute">
+        <parent link="sphere2"/>
+        <child link="cylinder4"/>
+
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+
+        <axis xyz="1 0 0"/>
+
+        <limit
+            lower="-1.5708"
+            upper="1.5708"
+            effort="10"
+            velocity="1"
+        />
+    </joint>
+
+
+    <!-- ============== CYLINDER 4 ============== -->
+
+    <link name="cylinder4">
+        <visual>
+            <origin xyz="0 0 0.125" rpy="0 0 0"/>
+
+            <geometry>
+                <cylinder radius="0.05" length="0.25"/>
+            </geometry>
+        </visual>
+    </link>
+
+
+    <!-- ============== END EFFECTOR ============== -->
+
+    <joint name="end_effector_joint" type="fixed">
+        <parent link="cylinder4"/>
+        <child link="end_effector"/>
+
+        <origin xyz="0 0 0.25" rpy="0 0 0"/>
+    </joint>
+
+    <link name="end_effector"/>
+
+</robot>
