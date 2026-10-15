@@ -36,8 +36,6 @@ def segmentate(image_bgr, ref_col = REF_COL):
 
     return mask.astype(np.uint8) * 255
     
-def get_cnt_center( cnt ) -> tuple[int]:
-    pass
 
 def find_hoop(bin_img):
     """
@@ -99,7 +97,7 @@ def find_hoop_homography(images: ArrayLike, hoop_positions: List[dict]) -> np.nd
     image_points = []
     world_points = []
 
-    # TODO (done?) HW03: Detect circle in each image
+    # DONE HW03: Detect circle in each image
     kernel = cv2.getStructuringElement(
                 cv2.MORPH_ELLIPSE, (5, 5)
             )
@@ -150,7 +148,7 @@ def find_hoop_homography(images: ArrayLike, hoop_positions: List[dict]) -> np.nd
         x,y,z = pos["translation_vector"]
         world_points.append([x, y])
 
-    # TODO HW03: Find homography using cv2.findHomography. Use the hoop positions and circle centers.
+    # DONE HW03: Find homography using cv2.findHomography. Use the hoop positions and circle centers.
 
     world_points = np.array(world_points, dtype=np.float32)
     image_points = np.array(image_points, dtype=np.float32)
