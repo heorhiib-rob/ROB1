@@ -147,11 +147,65 @@ class PlanarManipulator(RobotBase):
         configuration."""
         jac = np.zeros((3, len(self.q)))
         # todo: HW04 implement jacobian computation
+
+        frames = self.fk_all_links()
+        p_end = frames[-1].translation
+
+        for i, joint_type in enumerate(self.structure):
+            if joint_type == "R":
+                p_joint = frames[i].translation
+                d = p_end - p_joint
+                jac[:, i] = [
+                    -d[1], d[0], 1
+                ]
+            elif joint_type == "P":
+                T = frames[i + 1]
+                direction = (
+                    T * SE2([1,0])
+                ).translation - T.translation
+
+                jac[:,i] = [
+                    direction[0],
+                    direction[1],
+                    0.0
+                ]
         return jac
 
     def jacobian_finite_difference(self, delta=1e-5) -> np.ndarray:
         jac = np.zeros((3, len(self.q)))
         # todo: HW04 implement jacobian computation
+
+        q_original = np.asarray(self.q, dtype=float).copy()
+
+        for i, _ in enumerate(self.structure):
+            q_plus = q_original.copy()
+            q_plus[i] += delta
+
+            self.q = q_plus
+
+            f_end = self.flange_pose()
+            p_plus = np.array([
+                f_end.translation[0],
+                f_end.translation[1],
+                f_end.rotation.angle
+            ])
+
+            q_minus = q_original.copy()
+            q_minus[i] -= delta
+
+            self.q = q_minus
+
+            f_end = self.flange_pose()
+            p_minus = np.array([
+                f_end.translation[0],
+                f_end.translation[1],
+                f_end.rotation.angle
+            ])
+
+            jac[:,i] = (p_plus - p_minus) / (2*delta)
+
+        self.q = q_original
+
         return jac
 
     def ik_numerical(
