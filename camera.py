@@ -17,13 +17,13 @@ class Camera:
         Returns a transformation between maze system
         and world system
         """
-        pass
+        return SE3()
 
     def get_maze_ang_vel(self) -> float:
         """
         Returns an angular velocity of the maze
         """
-        pass
+        return 0.0
 
     # === Private ===
     # example (private methods are denoted by _name)

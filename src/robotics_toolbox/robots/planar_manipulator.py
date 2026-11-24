@@ -75,7 +75,7 @@ class PlanarManipulator(RobotBase):
         internal state."""
         return np.random.uniform(self.q_min, self.q_max)
 
-    def set_configuration(self, configuration: np.ndarray | SE2 | SE3):
+    def set_configuration(self, configuration: np.ndarray):
         """Set configuration of the robot, return self for chaining."""
         self.q = configuration
         return self
@@ -202,7 +202,9 @@ class PlanarManipulator(RobotBase):
                 f_end.rotation.angle
             ])
 
-            jac[:,i] = (p_plus - p_minus) / (2*delta)
+            diff = p_plus - p_minus
+            diff[2] = (diff[2] + np.pi) % (2*np.pi) - np.pi
+            jac[:,i] = diff / (2*delta)
 
         self.q = q_original
 
@@ -218,7 +220,56 @@ class PlanarManipulator(RobotBase):
         to solution of IK. Returns True if converged, False otherwise."""
         # todo: HW05 implement numerical IK
 
-        return False
+        def error(flange_p):
+            x_d, y_d = flange_pose_desired.translation
+            phi_d = flange_pose_desired.rotation.angle
+
+            x_c, y_c = flange_p.translation
+            phi_c = flange_p.rotation.angle
+
+            e_phi = (phi_d - phi_c + np.pi) % (2*np.pi) - np.pi
+
+            return np.array([
+                x_d - x_c,
+                y_d - y_c,
+                e_phi
+            ]) 
+
+        for i in range(max_iterations):
+            flange = self.flange_pose()
+
+            e = error(flange)
+            err_old = np.linalg.norm(e)
+
+            if err_old < acceptable_err:
+                return True
+            
+            J = self.jacobian()
+            dq = np.linalg.pinv(J) @ e
+
+            alpha = 1.0
+            q_old = self.q.copy()
+
+            accepted = False
+
+            for i in range(30):
+
+                self.q = q_old + alpha * dq
+
+                e_new = error(self.flange_pose())
+                err_new = np.linalg.norm(e_new)
+
+                if err_new < err_old:
+                    accepted = True
+                    break
+
+                alpha *= 0.5
+
+            if not accepted:
+                self.q = q_old
+                return False
+            
+        return np.linalg.norm(error(self.flange_pose())) <= acceptable_err
 
     def ik_analytical(self, flange_pose_desired: SE2) -> list[np.ndarray]:
         """Compute IK analytically, return all solutions for joint limits being
@@ -231,8 +282,113 @@ class PlanarManipulator(RobotBase):
         # todo: HW05 implement analytical IK for RRR manipulator
         # todo: HW05 optional implement analytical IK for PRR manipulator
         if self.structure == "RRR":
-            pass
-        return []
+            # get base pose to be (0,0,0)
+            target_local = self.base_pose.inverse() * flange_pose_desired
+            
+            # single coords of target
+            x, y = target_local.translation
+            phi = target_local.rotation.angle
+
+            elbow_up = list()
+            elbow_down = list()
+            # const lens
+            l1, l2, l3 = self.link_parameters
+
+            # third joint pose
+            x_w = x - l3*np.cos(phi)
+            y_w = y - l3*np.sin(phi)
+
+            # * first joint
+            d_sq = x_w**2 + y_w**2
+            alpha = np.arccos(
+                (d_sq + l1**2 - l2**2)/
+                (2*l1*np.sqrt(d_sq))
+            ) 
+
+            beta = np.atan2(y_w, x_w)
+
+            q1_up = -alpha + beta # elbow up
+            q1_down = alpha + beta # elbow down
+
+            elbow_up.append(q1_up)
+            elbow_down.append(q1_down)
+            # * second joint
+            # elbow up
+            x_e = l1 * np.cos(q1_up)
+            y_e = l1 * np.sin(q1_up)
+
+            theta = np.atan2(y_w - y_e, x_w - x_e) 
+
+            q2_up = theta - q1_up
+            elbow_up.append(q2_up)
+
+            # elbow down
+            x_e = l1 * np.cos(q1_down)
+            y_e = l1 * np.sin(q1_down)
+
+            theta = np.atan2(y_w - y_e, x_w - x_e) 
+
+            q2_down = theta - q1_down
+            elbow_down.append(q2_down)
+
+            # * third joint
+            # elbow up 
+            q3_up = phi - q1_up - q2_up
+            elbow_up.append(q3_up)
+
+            # elbow down
+            q3_down = phi - q1_down - q2_down
+            elbow_down.append(q3_down)
+
+            q_up = np.array(elbow_up)
+            q_down = np.array(elbow_down)
+
+            q_up = (q_up + np.pi) % (2*np.pi) - np.pi
+            q_down = (q_down + np.pi) % (2*np.pi) - np.pi
+
+            solutions = [q_down, q_up]
+
+        else:
+            pose = self.base_pose.inverse() * flange_pose_desired
+
+            x, y = pose.translation
+            phi = pose.rotation.angle
+
+            a, l2, l3 = self.link_parameters
+
+            xw = x - l3 * np.cos(phi)
+            yw = y - l3 * np.sin(phi)
+
+            t = xw * np.cos(a) + yw * np.sin(a)
+            d = -xw * np.sin(a) + yw * np.cos(a)
+
+            if d**2 > l2**2 + 1e-10:
+                return []
+
+            h = np.sqrt(max(0, l2**2 - d**2))
+
+            solutions = []
+
+            for sign in [1, -1]:
+
+                q1 = t + sign * h
+
+                q2 = np.arctan2(
+                    yw - q1 * np.sin(a),
+                    xw - q1 * np.cos(a)
+                ) - a
+
+                q3 = phi - a - q2
+
+                q2 = (q2 + np.pi) % (2 * np.pi) - np.pi
+                q3 = (q3 + np.pi) % (2 * np.pi) - np.pi
+
+                q = np.array([q1, q2, q3])
+
+                if not any(np.allclose(q, s) for s in solutions):
+                    solutions.append(q)
+
+        return solutions
 
     def in_collision(self) -> bool:
         """Check if robot in its current pose is in collision."""
