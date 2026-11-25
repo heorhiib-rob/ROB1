@@ -1,4 +1,7 @@
+from typing import Any
+
 import numpy as np
+import matplotlib.pyplot as plt
 from src.robotics_toolbox.core import SE3, SO3
 from abc import ABC, abstractmethod
 
@@ -6,10 +9,6 @@ class Trajectory(ABC):
 
     @abstractmethod
     def length(self) -> float:
-        pass
-
-    @abstractmethod
-    def get_step(self, pose : SE3) -> float:
         pass
 
     @abstractmethod
@@ -32,12 +31,12 @@ class Trajectory(ABC):
         return v/np.linalg.norm(v) 
 
     def get_pose(self, t: float) -> SE3:
-        p = self._get_position(t)
-        R = self.get_rotation(t)
+        return SE3(
+            self._get_position(t),
+            self._get_rotation(t)
+        )
 
-        return SE3(p, R)
-
-    def get_rotation(self, t : float) -> SO3:
+    def _get_rotation(self, t : float) -> SO3:
         z = self.get_tangent(t)
 
         up = np.array([0, 0, 1.0])
@@ -57,8 +56,43 @@ class Arc(Trajectory):
 
     ]
     """
-    def __init__(self, center : np.ndarray, radius : float, angle : float):
-        pass
+    def __init__(
+            self, 
+            start_pt : SE3,
+            center : np.ndarray,
+            axis : np.ndarray,
+            angle : float
+            ):
+        self.start_pt = start_pt.translation
+        self.center = center
+        self.axis = axis / np.linalg.norm(axis)
+        self.angle = angle
+
+        self.radial = self.start_pt - self.center
+        self.radius = np.linalg.norm(self.radial)
+
+    def _get_position(self, t):
+        R = SO3.exp(self.axis * self.angle * t)
+
+        return self.center + R.act(self.radial)
+
+    def _get_derivative(self, t: float) -> np.ndarray:
+        radial = self._get_position(t) - self.center
+
+        return self.angle * np.cross(self.axis, radial)
+
+    def length(self) -> float:
+        return float(self.radius * abs(self.angle))
+
+    def inverse(self, flange_pose: SE3) -> float:
+        u = flange_pose.translation - self.center
+
+        alpha = np.arctan2(
+            self.axis @ np.cross(self.radial, u),
+            self.radial @ u
+        )
+
+        return float(alpha / self.angle)
 
 class Line(Trajectory):
     """
@@ -74,7 +108,10 @@ class Line(Trajectory):
     def from_t(cls, start_t : np.ndarray, end_t : np.ndarray):
         return cls(SE3(start_t), SE3(end_t))
 
-    def _get_derivative(self) -> np.ndarray:
+    def _get_position(self, t):
+        return self.start_pt + t * self.direction
+
+    def _get_derivative(self, t) -> np.ndarray:
         return self.direction
 
     def inverse(self, flange_pose : SE3) -> float:
@@ -85,12 +122,82 @@ class Line(Trajectory):
 
     def length(self):
         return np.linalg.norm(self.end_pt - self.start_pt)
+    
+tr1 :list[Trajectory] = [
+    Line.from_t(
+        np.array([0.0, 0.0, 0.0]),
+        np.array([0.0, 0.0, 0.2])
+        )
+]
 
-    def get_pose(self, t : float):
-        p = self.start_pt + t * self.direction
-        R = self.get_rotation(t)
+tr2 : list[Trajectory] = [
+    Line.from_t(
+        np.array([0.0, 0.0, 0.0]),
+        np.array([0.0, 0.0, 0.08])
+        ),
+    
+    Line.from_t(
+        np.array([0.0, 0.0, 0.08]),
+        np.array([0.07, 0.0, 0.15])
+        ),
 
-        return SE3(p,  R)
+    Line.from_t(
+        np.array([0.07, 0.0, 0.15]),
+        np.array([0.07, 0.0, 0.2])
+        )
+]
+
+tr3 : list[Trajectory] = [
+    Line.from_t(
+        np.array([0.0, 0.0, 0.0]),
+        np.array([0.0, 0.0, 0.05])
+        ),
+    
+    Line.from_t(
+        np.array([0.0, 0.0, 0.05]),
+        np.array([-0.05, 0.0, 0.1])
+        ),
+
+    Line.from_t(
+        np.array([-0.05, 0.0, 0.1]),
+        np.array([-0.05, 0.05, 0.15])
+        ),
+
+    Line.from_t(
+        np.array([-0.05, 0.05, 0.15]),
+        np.array([-0.05, 0.05, 0.2])
+        )
+    
+]
+
+tr4 : list[Trajectory] = [
+    Line.from_t(
+        np.array([0.0, 0.0, 0.0]),
+        np.array([0.0, 0.0, 0.03])
+        ),
+
+    Line.from_t(
+        np.array([0.0, 0.0, 0.03]),
+        np.array([-0.015, 0.0, 0.045])
+        ),
+
+    Line.from_t(
+        np.array([-0.015, 0.0, 0.045]),
+        np.array([-0.015, 0.0, 0.105])
+        ),
+
+    Arc(
+        start_pt=SE3(np.array([-0.015, 0.0, 0.105])),
+        center=np.array([0.035, 0, 0.105]),
+        axis=np.array([0, 1, 0]),
+        angle=1.57
+    ),
+
+    Line.from_t(
+        np.array([0.035, 0, 0.155]),
+        np.array([0.085, 0, 0.155])
+    )
+]
 
 class Planner:
     """
@@ -124,3 +231,67 @@ class Planner:
 
     def _calc_derivative(self) -> SE3:
         return SE3()
+
+
+def test_trajectory(tr: Trajectory):
+    for t in np.linspace(0, 1, 11):
+        pose = tr.get_pose(t)
+        t_inv = tr.inverse(pose)
+
+        assert np.isclose(t, t_inv)
+
+    print("Trajectory OK")
+
+def plot_trajectory(trajectory: list[Trajectory], n: int = 100):
+    fig = plt.figure(figsize=(12, 10))
+
+    ax3d = fig.add_subplot(221, projection='3d')
+    ax_xy = fig.add_subplot(222)
+    ax_xz = fig.add_subplot(223)
+    ax_yz = fig.add_subplot(224)
+
+    ax_xy.invert_yaxis()
+
+    for i, segment in enumerate(trajectory):
+        points = np.array([
+            segment.get_pose(t).translation
+            for t in np.linspace(0, 1, n)
+        ])
+
+        x, y, z = points.T
+
+        label = f"{type(segment).__name__} {i}"
+
+        ax3d.plot(x, y, z, label=label)
+        ax_xy.plot(x, y)
+        ax_xz.plot(x, z)
+        ax_yz.plot(y, z)
+
+    ax3d.set_title("3D trajectory")
+    ax3d.set_xlabel("X")
+    ax3d.set_ylabel("Y")
+    ax3d.set_zlabel("Z")
+    ax3d.set_aspect("equal")
+    ax3d.legend()
+
+    ax3d.set_xlim(-0.1, 0.1)
+    ax3d.set_ylim(-0.1, 0.1)
+    ax3d.set_zlim(0.0, 0.2)
+
+    ax3d.set_box_aspect([1, 1, 1])
+
+    for ax, a, b in [
+        (ax_xy, "X", "Y"),
+        (ax_xz, "X", "Z"),
+        (ax_yz, "Y", "Z")
+    ]:
+        ax.set_title(a + b)
+        ax.set_xlabel(a)
+        ax.set_ylabel(b)
+        ax.set_aspect("equal")
+        ax.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+plot_trajectory(tr4)
