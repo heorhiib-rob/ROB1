@@ -2,7 +2,8 @@ from typing import Any
 
 import numpy as np
 import matplotlib.pyplot as plt
-from src.robotics_toolbox.core import SE3, SO3
+from se3 import SE3 
+from so3 import SO3
 from abc import ABC, abstractmethod
 
 class Trajectory(ABC):
